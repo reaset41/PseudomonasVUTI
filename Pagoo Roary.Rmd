@@ -1,0 +1,218 @@
+---
+title: "Pagoo Roary"
+author: "Seth Reasoner"
+date: "7/31/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## from STAR methods https://star-protocols.cell.com/protocols/1048#summary
+
+
+```{r}
+
+
+
+```
+
+```{r}
+library(pagoo)
+setwd("/volumes/Seagate/Pseudomonasgff/gffs/roaryoutput")
+gffs <- list.files(path = "../gffs/", pattern = "[.]gff$", full.names = TRUE)
+
+gpa_csv <- "gene_presence_absence.csv"
+
+pg <- roary_2_pagoo(gpa_csv,gffs)
+head(pg$organisms)
+
+Site_df <- data.frame(org = pg$organisms$org,Site = Book1$Site)
+pg$add_metadata(map = "org", Site_df)
+
+
+clust_meta
+
+  
+```
+
+
+```{r}
+## Pie chart of core and accessory genes
+
+panel4 <- pg$gg_pie() + theme_bw(base_size = 15) +
+
+    scale_fill_brewer(palette = "Blues") +
+
+    scale_x_discrete(breaks = c(0, 25, 50, 75)) + labs(subtitle = "D") +
+
+    theme(legend.position = "bottom", legend.title = element_blank(),
+
+      legend.text = element_text(size = 10),
+
+      legend.margin = margin(0, 0, 13, 0), legend.box.margin = margin(0, 0, 5, 0),
+
+      axis.title = element_blank(), axis.ticks = element_blank(),
+
+      axis.text.x = element_blank())
+
+panel4
+```
+
+
+```{r}
+
+##Pangenome curves
+panel1 <- pg$gg_curves() +
+   
+   scale_color_brewer(palette = "Accent")+
+  
+  geom_point(alpha = .05, size = 4) +
+
+    theme_bw(base_size = 15) +
+
+    labs(subtitle = "A") +
+
+    theme(legend.position = "none",
+
+      axis.title = element_text(size = 12),
+
+      axis.text = element_text(size = 12))
+
+
+panel1
+
+```
+
+
+```{r}
+## Principle components analysis
+
+panel3 <- pg$gg_pca(color = "Site", size = 4) +
+
+    theme_bw(base_size = 15) +
+
+    labs(subtitle = "C") +
+    scale_color_brewer(palette = "Set2")+
+
+    theme(legend.position = "bottom",
+
+      legend.title = element_blank(),
+
+      legend.text = element_text(size = 10),
+
+      axis.title = element_text(size = 12),
+
+      axis.text = element_text(size = 12))
+
+panel3
+
+```
+
+```{r}
+library(magrittr)
+
+library(DECIPHER)
+
+library(Biostrings)
+
+library(phangorn)
+
+library(ggtree)
+
+library(rhierbaps)
+
+# Drop Cft and set core level to 100
+
+cft <- pg$organisms[which(pg$organisms$Subspecies=="Cft"),"org"]
+
+pg$drop(cft)
+
+pg$core_level <- 100
+
+# Align individual core genes
+
+ali <- pg$core_seqs_4_phylo() %>%
+
+  lapply(DECIPHER::AlignTranslation)
+
+# Identify neutral core clusters using Tajima's D
+
+tajD <- ali %>%
+
+    lapply(ape::as.DNAbin) %>%
+
+    lapply(pegas::tajima.test) %>%
+
+    sapply("[[", "D")
+
+neutral <- which(tajD <= 2 & tajD >= -2)
+
+# Concatenate neutral core gene clusters
+
+concat_neu <- ali[neutral] %>%
+
+      do.call(Biostrings::xscat, .) %>%
+
+      setNames(p$organisms$org) %>%
+
+      as("matrix") %>%
+
+      tolower()
+
+# Find population structure with RhierBAPS
+
+rhb <- hierBAPS(snp.matrix = concat_neu, n.pops = 10,
+
+        max.depth = 1, n.extra.rounds = 5)
+
+# Add lineage information to organisms metadata
+
+res <- rhb$partition.df
+
+lin <- data.frame(org = as.character(res[, 1]),
+
+          lineage = as.factor(res[, 2]))
+
+pg$add_metadata(map = "org", data = lin)
+
+# Compute phylogeny
+
+tre <- concat_neu %>%
+
+  phangorn::phyDat(type = "DNA") %>%
+
+  phangorn::dist.ml() %>%
+
+  phangorn::NJ()
+
+# Draw phylogeny with lineage and host information
+
+gg1 <- ggtree(tre, ladderize = T, layout = "slanted") %<+%
+
+  as.data.frame(p$organisms) +
+
+  geom_tippoint(aes(color = as.factor(lineage))) +
+
+  labs(subtitle = "A") +
+
+  scale_color_discrete("Lineage")
+
+gg2 <- ggtree(tre, ladderize = T, layout = "slanted") %<+%
+
+  as.data.frame(p$organisms) +
+
+  geom_tippoint(aes(colour = as.factor(Host))) +
+
+  labs(subtitle = "B") +
+
+  scale_colour_discrete("Host")
+
+fig2 <- gg1 + gg2
+
+```
+
+
+
+

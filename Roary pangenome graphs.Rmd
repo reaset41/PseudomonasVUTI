@@ -1,0 +1,241 @@
+---
+title: "Roary pangenome graphs"
+author: "Seth Reasoner"
+date: "7/25/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+library(stringr)
+library(stringi)
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(tidyr)
+library(plyr)
+library(dplyr)
+library(RColorBrewer)
+library(micropan)
+library(microseq)
+library(vegan)
+
+```
+
+
+
+```{r}
+##I got this code from https://www.biorxiv.org/content/10.1101/2022.06.29.498201v1
+
+setwd("/Volumes/Seagate/Pseudomonasgff/roaryoutput/")
+mydata = read.table("number_of_genes_in_pan_genome.Rtab")
+
+data1 <- mydata
+##update to number of genomes present 
+colnames(data1) <- 1:109
+
+data2 <- pivot_longer(data1, cols = everything(), names_to = "no_of_genomes", values_to = "no_of_genes")
+data2$no_of_genomes <- as.numeric(data2$no_of_genomes)
+
+### calculating 
+model <- lm(log(data2$no_of_genes) ~ log(data2$no_of_genomes))
+summary(model)
+
+##Use the results of the model to define the equation
+
+##
+
+## Result:
+##Call:
+##lm(formula = log(data2$no_of_genes) ~ log(data2$no_of_genomes))
+
+##Residuals:
+  ## Min        1Q    Median        3Q       Max 
+##-0.137937 -0.021286  0.006332  0.022431  0.193047 
+##Coefficients:
+                         ##Estimate Std. Error t value Pr(>|t|)    
+##(Intercept)              8.535865   0.004732  1803.9   <2e-16 ***
+##log(data2$no_of_genomes) 0.351334   0.001234   284.8   <2e-16 ***
+
+##Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+##Residual standard error: 0.03779 on 1088 degrees of freedom
+##Multiple R-squared:  0.9868,	Adjusted R-squared:  0.9867 
+##F-statistic: 8.108e+04 on 1 and 1088 DF,  p-value: < 2.2e-16
+
+gene1 = read.table("gene_presence_absence.Rtab")
+
+##estimate over 500 iterations, estimating the decay parameter (alpha) fitting the Heap’s Law model
+
+gene2 <- gene1
+colnames(gene2) <- gene1[1, ]
+rownames(gene2) <- gene1$V1
+gene3 <- gene2[-1, ]
+gene4 <- gene3[ , -1]
+gene5 <- t(gene4)
+set.seed(1234)
+h.est <- heaps(gene5, n.perm = 500) 
+
+### plotting genes vs. genomes
+##Use the results of the model to define the equation
+
+ggplot(data2, aes(x=factor(no_of_genomes), y=no_of_genes)) + 
+  #geom_point() +
+  geom_boxplot(outlier.shape = NA, fill= "#E8A419") +
+  geom_smooth(method = 'nls', formula = 'y~a*x^b') +
+  # geom_text(x = 600, y = 1, label = power_eqn(DD), parse = TRUE) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90), panel.background = element_rect(colour = "black", size=1), text = element_text(size = 10)) +
+  scale_x_discrete(breaks = seq(1, length(data2$no_of_genomes), by =1)) +
+  geom_text(x = 15, y= 25000, label= "N = 5700n^0.351334", size = 4) +
+  geom_text(x= 30, y = 23000, label = "alpha = 0.564 (Heap's law), p-value < 2.2e-16", size = 4)+
+  ggtitle("Total number of genes vs number of genomes")
+
+##N is average number of coding DNA sequences (CDS) in the genomes
+
+
+```
+
+```{r}
+setwd("/volumes/Seagate/Pseudomonasgff/roaryoutput/")
+mydata = read.table("number_of_new_genes.Rtab")
+png(filename = "number_new_genes.png", width = 6, height = 4, units = "in", res = 300)
+boxplot(mydata, data=mydata, main="Number of new genes",
+         xlab="No. of genomes", ylab="No. of genes",varwidth=TRUE, ylim=c(0,max(mydata)), outline=FALSE)
+dev.off()
+
+mydata2 = read.table("number_of_conserved_genes.Rtab")
+png(filename = "number_of_conserved_genes.png", width = 6, height = 4, units = "in", res = 300)
+boxplot(mydata2, data=mydata2, main="Number of conserved genes",
+          xlab="No. of genomes", ylab="No. of genes",varwidth=TRUE, ylim=c(0,max(mydata)), outline=FALSE)
+dev.off()
+    
+mydata3 = read.table("number_of_genes_in_pan_genome.Rtab")
+png(filename = "number_of_genes_in_pan.png", width = 6, height = 4, units = "in", res = 300)
+boxplot(mydata3, data=mydata3, main="No. of genes in the pan-genome",
+          xlab="No. of genomes", ylab="No. of genes",varwidth=TRUE, ylim=c(0,max(mydata)), outline=FALSE)
+dev.off()
+
+mydata4 = read.table("number_of_unique_genes.Rtab")
+png(filename = "number_of_unique_genes.png", width = 6, height = 4, units = "in", res = 300)
+boxplot(mydata4, data=mydata4, main="Number of unique genes",
+         xlab="No. of genomes", ylab="No. of genes",varwidth=TRUE, ylim=c(0,max(mydata)), outline=FALSE)
+dev.off()
+
+mydata5 = read.table("blast_identity_frequency.Rtab")
+png(filename = "blast_identify_frequency.png", width = 6, height = 4, units = "in", res = 300)
+plot(mydata5,main="Number of blastp hits with different percentage identity",  xlab="Blast percentage identity", ylab="No. blast results")
+dev.off()
+
+conserved = colMeans(read.table("number_of_conserved_genes.Rtab"))
+total = colMeans(read.table("number_of_genes_in_pan_genome.Rtab"))
+
+genes = data.frame( genes_to_genomes = c(conserved,total),
+                    genomes = c(c(1:length(conserved)),c(1:length(conserved))),
+                    Key = c(rep("Conserved genes",length(conserved)), rep("Total genes",length(total))) )
+                    
+ggplot(data = genes, aes(x = genomes, y = genes_to_genomes, group = Key, linetype=Key)) +geom_line()+
+theme_classic() +
+ylim(c(1,max(total)))+
+xlim(c(1,length(total)))+
+xlab("No. of genomes") +
+ylab("No. of genes")+ theme_bw(base_size = 16) +  theme(legend.justification=c(0,1),legend.position=c(0,1))
+ggsave(filename="conserved_vs_total_genes.png", scale=1)
+
+######################
+
+unique_genes = colMeans(read.table("number_of_unique_genes.Rtab"))
+new_genes = colMeans(read.table("number_of_new_genes.Rtab"))
+
+genes = data.frame( genes_to_genomes = c(unique_genes,new_genes),
+                    genomes = c(c(1:length(unique_genes)),c(1:length(unique_genes))),
+                    Key = c(rep("Unique genes",length(unique_genes)), rep("New genes",length(new_genes))) )
+                    
+ggplot(data = genes, aes(x = genomes, y = genes_to_genomes, group = Key, linetype=Key)) +geom_line()+
+theme_classic() +
+ylim(c(1,max(unique_genes)))+
+xlim(c(1,length(unique_genes)))+
+xlab("No. of genomes") +
+ylab("No. of genes")+ theme_bw(base_size = 16) +  theme(legend.justification=c(1,1),legend.position=c(1,1))
+ggsave(filename="unique_vs_new_genes.png", scale=1)
+
+
+```
+
+```{r}
+## from STAR methods https://star-protocols.cell.com/protocols/1048#summary
+
+library(pagoo)
+
+##read in all gff files 
+gffs <- list.files(path = "../gffs/", pattern = "[.]gff$", full.names = TRUE)
+
+gpa_csv <- "gene_presence_absence.csv"
+
+pg <- roary_2_pagoo(gpa_csv,gffs)
+head(pg$organisms)
+
+Site_df <- data.frame(org = pg$organisms$org,Site = Book1$Site)
+pg$add_metadata(map = "org", Site_df)
+
+```
+
+
+```{r}
+## Pie chart of core and accessory genes
+
+panel4 <- pg$gg_pie() + theme_bw(base_size = 15) +
+
+    scale_fill_brewer(palette = "Blues") +
+
+    scale_x_discrete(breaks = c(0, 25, 50, 75)) + labs(subtitle = "D") +
+
+    theme(legend.position = "bottom", legend.title = element_blank(),
+
+      legend.text = element_text(size = 10),
+
+      legend.margin = margin(0, 0, 13, 0), legend.box.margin = margin(0, 0, 5, 0),
+
+      axis.title = element_blank(), axis.ticks = element_blank(),
+
+      axis.text.x = element_blank())
+
+panel4
+```
+
+
+```{r}
+
+##Pangenome curves
+panel1 <- pg$gg_curves() +
+   
+   scale_color_brewer(palette = "Accent")+
+  
+  geom_point(alpha = .05, size = 4) +
+
+    theme_bw(base_size = 15) +
+
+    labs(subtitle = "A") +
+
+    theme(legend.position = "none",
+
+      axis.title = element_text(size = 12),
+
+      axis.text = element_text(size = 12))
+
+
+panel1
+
+```
+

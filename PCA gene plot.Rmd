@@ -1,0 +1,163 @@
+---
+title: "CINNONC"
+author: "Seth Reasoner"
+date: "8/2/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+
+prokka_full_tsv <- read.table(file = '~/Desktop/tsvs/prokka_full.tsv')
+
+names(prokka_full) <- prokka_full_tsv[1,]
+prokka_full_tsv <- prokka_full_tsv[-1,]
+
+```
+
+
+```{r}
+
+library(stringr)
+library(stringi)
+library(readxl)
+library(tidyverse)
+library(ggplot2)
+library(readr)
+library(tidyr)
+library(plyr)
+library(dplyr)
+library(RColorBrewer)
+library(philentropy)
+library(vegan)
+library(ade4)
+
+```
+
+```{r}
+
+prokka_full_tsv <- read.table(file = '~/Desktop/tsvs/prokka_full.tsv')
+prokka_full_tsv <- separate(prokka_full, col = locus_tag, into = c("prokka_id", "locus_no"), sep = "_")
+
+cog_def <- cog.20.def
+cog_def <- cog_def[, 1:5]
+
+```
+
+```{r}
+
+
+prokka_metadata <- prokka_meta1
+
+cluster_group1 <- prokka_metadata %>%  arrange(sample_type)
+
+merge_prokka <- inner_join(prokka_full_tsv, cluster_group1, by = 'prokka_id') %>% arrange(sample_type)
+
+merge_prokka$prab <- 1
+
+merge_prab <- select(merge_prokka, Name, product, prab) %>% distinct()
+merge_prab1 <- merge_prab %>% pivot_wider(names_from = Name, values_from = prab, values_fill = 0)
+
+merge_prab2 <- merge_prab1 
+rownames(merge_prab2) <- merge_prab1$product
+merge_prab3 <- merge_prab2[,-1]
+
+rownames(merge_prab3) <- merge_prab2$product
+merge_prab4 <- t(merge_prab3)
+
+merge_prab7 <- select(merge_prokka, Name, gene, prab) %>% distinct()
+merge_prab8 <- merge_prab7 %>% pivot_wider(names_from = Name, values_from = prab, values_fill = 0)
+merge_prab9 <- merge_prab8
+rownames(merge_prab9) <- merge_prab1$gene
+merge_prab10 <- merge_prab9[,-1]
+
+rownames(merge_prab10) <- merge_prab9$gene
+merge_prab11 <- t(merge_prab10)
+
+getwd()
+write.csv(merge_prab11,"File Name11genes.csv", row.names = TRUE)
+
+```
+
+
+```{r}
+## create pca plot
+
+set.seed(1234)
+
+cog.pca <- dudi.pca(merge_prab4, scannf = FALSE, center = TRUE, scale = FALSE)
+
+cog.eig <- cog.pca$eig
+prop_var <- cog.eig/sum(cog.eig) * 100
+
+
+pca.axes.cog <- cog.pca$li
+pca.axes.cog$Name <- rownames(pca.axes.cog)
+pca.axes.cog1 <- inner_join(pca.axes.cog, cluster_group1, by = 'Name') %>% arrange(sample_type)
+
+pca.axes.cog1$isolate_id <- "0"
+pca.axes.cog1$isolate_id[grep("^CM", pca.axes.cog1$species)] <- "this_study"
+pca.axes.cog1$isolate_id[pca.axes.cog1$isolate_id == "0"] <- "other"
+
+ggplot(pca.axes.cog1, aes(x= Axis1, y= Axis2, fill = sample_type, color = isolate_id)) +geom_point(shape =21) +
+  #geom_segment(data = cog.loading.def, aes(x = 0, y = 0, xend = (CS1*20), yend = (CS2*20)), arrow = arrow(length = unit(1/2, "picas")), color = "blue") +
+  #annotate("text", x = (cog.loading.def$CS1*20), y = (cog.loading.def$CS2*20),
+  #         label = cog.loading.def$coggene, repel = TRUE) +
+  theme_classic() +
+  scale_fill_manual(breaks = pca.axes.cog1$sample_type, values = pca.axes.cog1$color) +
+  scale_color_manual(breaks = pca.axes.cog1$isolate_id, values = c("black", rgb(0, 0, 0, alpha=0))) + 
+  theme(text = element_text(size = 15), panel.background = element_rect(colour = "black", size=0.3), panel.grid.major = element_blank(), panel.grid.minor = element_blank()) +
+  labs(x = "Axis1 (33.22%)", y = "Axis2 (15.49%)") +
+  scale_x_continuous(limits = c(-5,5)) +
+  scale_y_continuous(limits = c(-5,5)) +
+  coord_fixed() +
+  ggtitle("PCA of gene presence and absence COG")
+
+```
+
+
+```{r}
+dat <- data.frame(
+  FunctionClass = factor(c("A", "B", "C", "D", "E", "F", "G", "H", "I",     "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "Y", "Z"), levels=c("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "Y", "Z")),
+  legend = c("A: RNA processing and modification", "B: Chromatin structure and dynamics", "C: Energy production and conversion", "D: Cell cycle control, cell division, chromosome partitioning", "E: Amino acid transport and metabolism", "F: Nucleotide transport and metabolism", "G: Carbohydrate transport and metabolism", "H: Coenzyme transport and metabolism", "I: Lipid transport and metabolism", "J: Translation, ribosomal structure and biogenesis", "K: Transcription", "L: Replication, recombination and repair", "M: Cell wall/membrane/envelope biogenesis", "N: Cell motility", "O: Posttranslational modification, protein turnover, chaperones", "P: Inorganic ion transport and metabolism", "Q: Secondary metabolites biosynthesis, transport and catabolism", "R: General function prediction only", "S: Function unknown", "T: Signal transduction mechanisms", "U: Intracellular trafficking, secretion, and vesicular transport", "V: Defense mechanisms", "W: Extracellular structures", "Y: Nuclear structure", "Z: Cytoskeleton"),
+  Frequency=c(360,391,897,1558,1168,448,1030,536,732,1292,2221,2098,789,117,1744,732,437,5162,1251,2191,603,216,2,14,739)
+)
+
+library(ggplot2)
+
+p <- ggplot(data=dat, aes(x=FunctionClass, y=Frequency, fill=legend))+
+
+geom_bar(stat="identity", position=position_dodge(), colour="seashell")
+
+p + guides (fill = guide_legend(ncol = 1))
+
+p
+```
+
+
+
+```{r}
+install.packages("qqman")
+library(qqman)
+
+manhattan(Book3, chr="chr", bp="bp", snp="gene", p="pvalue")
+
+```
+
+
+```{r}
+install.packages("qqman")
+library(qqman)
+
+manhattan(Book3, chr="chr", bp="bp", snp="gene", p="pvalue", annotatePval = 0.011)
+
+```
